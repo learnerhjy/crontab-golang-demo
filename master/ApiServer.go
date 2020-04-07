@@ -114,6 +114,7 @@ ERR:
 	}
 }
 
+// 强制结束任务接口
 func handleJobKill(resp http.ResponseWriter,req *http.Request){
 	var(
 		err error

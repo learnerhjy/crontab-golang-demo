@@ -31,8 +31,8 @@ func InitJobManager()(err error){
 	)
 
 	config = clientv3.Config{
-		Endpoints:   G_config.EndPoints,
-		DialTimeout: time.Duration(G_config.DialTimeOut)*time.Millisecond,
+		Endpoints:   G_config.EtcdEndPoints,
+		DialTimeout: time.Duration(G_config.EtcdDialTimeOut)*time.Millisecond,
 	}
 
 	if client,err = clientv3.New(config);err!=nil{
