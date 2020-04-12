@@ -73,12 +73,11 @@ func(JobManager *JobManager)WatchJob()(err error){
 	}
 	for _,kvpair = range getResp.Kvs{
 		// 反序列化
-		fmt.Println("here...")
 		if err,job = common.UnpackJob(kvpair.Value);err == nil{
 			// 构建SAVE Event
 			jobEvent = common.BuildJobEvent(common.JOB_SAVE_EVENT,job)
 			fmt.Println(*jobEvent)
-			// TODO 推给Schedule协程
+			// 推给Schedule协程
 			G_Scheduler.PushJobEvent(jobEvent)
 		}
 
@@ -115,3 +114,47 @@ func(JobManager *JobManager)WatchJob()(err error){
 	return
 }
 
+// 监听etcd中的killer目录
+func(JobManager *JobManager)WatchKiller()(err error){
+	var(
+		job *common.Job
+		watcher clientv3.Watcher
+		watchChan clientv3.WatchChan
+		watchChanResp clientv3.WatchResponse
+		event *clientv3.Event
+		jobEvent *common.JobEvent
+		jobName string
+
+	)
+
+	watcher = clientv3.NewWatcher(JobManager.Client)
+	watchChan = watcher.Watch(context.TODO(),common.JOB_KILL_DIR,clientv3.WithPrefix())
+	for watchChanResp = range watchChan{
+		for _,event = range watchChanResp.Events{
+			switch event.Type {
+			case mvccpb.PUT:
+				// 构建Kill Event
+				jobName = common.ExtractKillerName(string(event.Kv.Key))
+				job = &common.Job{
+					JobName:  jobName,
+				}
+				jobEvent = common.BuildJobEvent(common.JOB_SAVE_EVENT,job)
+			case mvccpb.DELETE:
+				// KillerKey 过期 不做处理
+
+			}
+			// TODO 推给Schedule协程
+			G_Scheduler.PushJobEvent(jobEvent)
+		}
+	}
+	return
+}
+
+
+
+
+// 创建锁
+func(JobManager *JobManager)CreateJobLock(jobName string)(jobLock *JobLock){
+	jobLock = InitJobLock(JobManager.Kv,JobManager.Lease,jobName)
+	return
+}

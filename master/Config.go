@@ -14,6 +14,8 @@ type Config struct {
 	EtcdEndPoints []string `json:"etcdEndPoints"`
 	EtcdDialTimeOut int `json:"etcdDialTimeOut"`
 	WebRoot string `json:"webRoot"`
+	MongodbUri string `json:"mongodbUri"`
+	MongodbConnectTimeOut int `json:"mongodbConnectTimeOut"`
 }
 
 // 单例

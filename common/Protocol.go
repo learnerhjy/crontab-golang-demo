@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/gorhill/cronexpr"
@@ -40,16 +41,47 @@ type JobExecuteInfo struct {
 	Job *Job
 	PlanTime time.Time
 	RealTime time.Time
+	CancelFunc context.CancelFunc // 取消函数
+	CancelCtx context.Context // 上下文
 }
 
 // 任务执行结果
 type JobExecuteResult struct{
+	ExecuteInfo *JobExecuteInfo
 	Job *Job
 	Output []byte
 	Err error
 	StartTime time.Time
 	EndTime time.Time
 }
+
+// 任务执行日志
+type JobLog struct{
+	JobName string `json:"jobName" bson:"jobName"`
+	Command string `json:"command" bson:"command"`
+	Err string `json:"error" bson:"error"`
+	Output string `json:"output" bson:"output"`
+	PlanTime int64 `json:"planTime" bson:"planTime"`          // 任务计划调度时间
+	ScheduleTime int64 `json:"scheduleTime" bson:"scheduleTime"`  // 任务实际调度时间
+	StartTime int64 `json:"startTime" bson:"startTime"`        // 任务执行开始时间
+	EndTime int64 `json:"endTime" bson:"endTime"`			  // 任务执行结束时间
+}
+
+// 任务执行日志批次
+type JobLogBatch struct {
+	JobLogs []interface{}
+}
+
+// 日志过滤条件
+type JobLogFilter struct {
+	JobName string `bson:"jobName"`
+}
+
+// 日志排序条件
+type JobLogSortCond struct{
+	SortCond int `bson:"startTime"`
+}
+
 // 构建返回的json数据
 func BuildJSONResp(status int,msg string,data interface{})(bytes []byte,err error){
 	var(
@@ -92,6 +124,11 @@ func ExtractJobName(jobKey string)(jobName string){
 	return strings.TrimPrefix(jobKey,JOB_SAVE_DIR)
 }
 
+// 从Job Key中获得要杀死的job的name
+func ExtractKillerName(jobKey string)(jobName string){
+	return strings.TrimPrefix(jobKey,JOB_KILL_DIR)
+}
+
 // 根据job构建任务执行计划
 func BuildJobSchedulePlan(job *Job)(jobSchedulePlan *JobSchedulePlan,err error){
 	var(
@@ -115,5 +152,11 @@ func BuildJobExecuteInfo(jobSchedulePlan *JobSchedulePlan)(jobExecuteInfo *JobEx
 		PlanTime: jobSchedulePlan.NextTime,
 		RealTime: time.Now(),
 	}
+	jobExecuteInfo.CancelCtx,jobExecuteInfo.CancelFunc = context.WithCancel(context.TODO())
 	return
+}
+
+// 从Key中获得worker的Ip地址
+func ExtractWorkerIp(workerKey string)(workerIp string){
+	return strings.TrimPrefix(workerKey,JOB_WORKER_DIR)
 }

@@ -14,6 +14,9 @@ import (
 type Config struct {
 	EtcdEndPoints []string `json:"etcdEndPoints"`
 	EtcdDialTimeOut int `json:"etcdDialTimeOut"`
+	MongodbUri string `json:"mongodbUri"`
+	MongodbConnectTimeOut int `json:"mongodbConnectTimeOut"`
+	JobLogBatchSize int `json:"jobLogBatchSize"`
 }
 
 // 单例

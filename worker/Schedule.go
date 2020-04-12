@@ -22,8 +22,33 @@ var(
 
 // 处理任务执行结果
 func(Scheduler *Scheduler)handleJobExecuteResult(result *common.JobExecuteResult){
+	var(
+		jobLog *common.JobLog
+	)
 	delete(Scheduler.jobExecutingTable,result.Job.JobName)
-	fmt.Println("任务执行结果:",result.Job.JobName,":",string(result.Output))
+
+	// 任务执行日志
+	// 时间以毫秒为单位
+	if result.Err != common.LOCK_ALREADY_OCCUPIED_ERROR{
+		jobLog = &common.JobLog{
+			JobName:      result.Job.JobName,
+			Command:      result.Job.Command,
+			Output:       string(result.Output),
+			PlanTime:     result.ExecuteInfo.PlanTime.UnixNano()/1000/1000,
+			ScheduleTime: result.ExecuteInfo.RealTime.UnixNano()/1000/1000,
+			StartTime:    result.StartTime.UnixNano()/1000/1000,
+			EndTime:      result.EndTime.UnixNano()/1000/1000,
+		}
+	}
+	if result.Err != nil{
+		jobLog.Err = result.Err.Error()
+	}
+	// 写到任务执行日志队列中
+	G_LogSink.Append(jobLog)
+
+
+
+	//fmt.Println("任务执行结果:",result.Job.JobName,":",string(result.Output))
 }
 // 处理任务调度计划，在任务调度计划表中增删
 func(Scheduler *Scheduler)handleJobSchedulePlan(jobEvent *common.JobEvent)(err error){
@@ -31,6 +56,9 @@ func(Scheduler *Scheduler)handleJobSchedulePlan(jobEvent *common.JobEvent)(err e
 		jobSchedulePlan *common.JobSchedulePlan
 		job *common.Job
 		jobIsExist bool
+		jobExecuteInfo *common.JobExecuteInfo
+		jobIsExecuting bool
+
 	)
 	job = jobEvent.Job
 	switch jobEvent.Type {
@@ -44,6 +72,11 @@ func(Scheduler *Scheduler)handleJobSchedulePlan(jobEvent *common.JobEvent)(err e
 	case common.JOB_DELETE_EVENT:
 		if jobSchedulePlan,jobIsExist = Scheduler.jobSchedulePlanTable[job.JobName];jobIsExist{
 			delete(Scheduler.jobSchedulePlanTable,job.JobName)
+		}
+	// 强杀事件，若任务正在执行，强制退出
+	case common.JOB_KILL_EVENT:
+		if jobExecuteInfo,jobIsExecuting = Scheduler.jobExecutingTable[job.JobName];jobIsExecuting{
+			jobExecuteInfo.CancelFunc() // 取消上下文，杀死任务
 		}
 	}
 	return
@@ -66,7 +99,6 @@ func (Scheduler *Scheduler)trySchedule()(duration time.Duration){
 	for _,jobSchedulePlan = range Scheduler.jobSchedulePlanTable{
 		// 如果任务的过期时间等于或早于当前时间，立即尝试执行（如果任务上一次还没执行完则不执行）
 		if jobSchedulePlan.NextTime.Equal(now) || jobSchedulePlan.NextTime.Before(now) {
-			//TODO
 			fmt.Println("执行任务",jobSchedulePlan.Job.JobName)
 			Scheduler.tryStartJob(jobSchedulePlan)
 			// 设置下一次执行时间
@@ -118,11 +150,13 @@ func(Scheduler *Scheduler)scheduleLoop(){
 	for{
 		select{
 		case jobEvent =<- Scheduler.jobEventChan:
+			// fmt.Println("handle schedule plan")
 			if err = Scheduler.handleJobSchedulePlan(jobEvent);err!=nil{
 				fmt.Println(err)
 			}
 		case <-schedulerTimer.C:
 		case result=<-Scheduler.jobExecuteResultChan:
+			//fmt.Println("handleresult")
 			// 从任务执行队列中拿到任务执行结果，并删除任务执行情况表中的相应任务
 			Scheduler.handleJobExecuteResult(result)
 		}
@@ -143,6 +177,7 @@ func InitScheduler()(err error){
 		jobEventChan:make(chan *common.JobEvent,1000),
 		jobSchedulePlanTable:make(map[string]*common.JobSchedulePlan),
 		jobExecutingTable:make(map[string]*common.JobExecuteInfo),
+		jobExecuteResultChan:make(chan *common.JobExecuteResult,1000),
 	}
 
 	// 启动调度协程
@@ -150,6 +185,8 @@ func InitScheduler()(err error){
 	return
 }
 
+// 推送任务执行结果
 func(Scheduler *Scheduler)PushJobResult(result *common.JobExecuteResult){
 	Scheduler.jobExecuteResultChan <- result
+	fmt.Println("push result")
 }

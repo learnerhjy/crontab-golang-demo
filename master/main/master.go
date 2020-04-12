@@ -39,7 +39,18 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+	// 启动任务管理模块
 	if err = master.InitJobManager();err!=nil{
+		fmt.Println(err)
+		return
+	}
+	// 启动日志管理模块
+	if err = master.InitLogManager();err!=nil{
+		fmt.Println(err)
+		return
+	}
+	// 启动服务发现模块
+	if err = master.InitWorkerManager();err!=nil{
 		fmt.Println(err)
 		return
 	}

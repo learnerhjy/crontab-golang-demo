@@ -38,19 +38,31 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-
-	// 初始化调度器
+	// 初始化服务注册模块
+	if err = worker.InitRegister();err!=nil{
+		fmt.Println(err)
+		return
+	}
+	// 初始化调度模块
 	if err = worker.InitScheduler();err!=nil{
 		fmt.Println(err)
 		return
 	}
 
-	if err = worker.InitExecutor();err!=nil{
+	// 初始化日志写入模块
+	if err = worker.InitLogSink();err!=nil{
 		fmt.Println(err)
 		return
 	}
 
 
+	// 初始化任务执行模块
+	if err = worker.InitExecutor();err!=nil{
+		fmt.Println(err)
+		return
+	}
+
+	// 初始化任务管理模块
 	if err = worker.InitJobManager();err!=nil{
 		fmt.Println(err)
 		return
